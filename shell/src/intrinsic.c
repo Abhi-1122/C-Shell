@@ -110,7 +110,7 @@ int fg(char *tokens)
 
     if (process_list[target_index].state == 0)
     {
-        if (kill(target_pid, SIGCONT) == -1)
+        if (kill(-target_pid, SIGCONT) == -1)
         {
             perror("Failed to continue process");
             return -1;
@@ -205,7 +205,7 @@ int bg(char *tokens)
 
     if (process_list[target_index].state == 0)
     {
-        if (kill(target_pid, SIGCONT) == -1)
+        if (kill(-target_pid, SIGCONT) == -1)
         {
             perror("Failed to continue process");
             return -1;

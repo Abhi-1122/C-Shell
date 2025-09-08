@@ -144,7 +144,7 @@ int run_atomic(atomic *atom, int background)
             {
                 if (forepgrp == -1)
                     forepgrp = getpid();
-                setpgid(0, forepgrp);
+                setpgid(0, 0);
             }
             if (!atom->args)
                 atom->args = ".";
@@ -158,8 +158,8 @@ int run_atomic(atomic *atom, int background)
             {
                 if (forepgrp == -1)
                     forepgrp = pid;
-                setpgid(pid, forepgrp);
-                tcsetpgrp(STDIN_FILENO, forepgrp);
+                setpgid(pid, pid);
+                tcsetpgrp(STDIN_FILENO, pid);
                 add_process(pid, atom->command, 0);
                 int status;
                 waitpid(pid, &status, WUNTRACED);
@@ -199,7 +199,7 @@ int run_atomic(atomic *atom, int background)
             {
                 if (forepgrp == -1)
                     forepgrp = getpid();
-                setpgid(0, forepgrp);
+                setpgid(0, 0);
             }
             char *argv[32];
             int argc = 0;
@@ -229,8 +229,8 @@ int run_atomic(atomic *atom, int background)
             {
                 if (forepgrp == -1)
                     forepgrp = pid;
-                setpgid(pid, forepgrp);
-                tcsetpgrp(STDIN_FILENO, forepgrp);
+                setpgid(pid, pid);
+                tcsetpgrp(STDIN_FILENO, pid);
                 add_process(pid, atom->command, 0);
                 int status;
                 waitpid(pid, &status, WUNTRACED);
@@ -270,7 +270,7 @@ int run_atomic(atomic *atom, int background)
             {
                 if (forepgrp == -1)
                     forepgrp = getpid();
-                setpgid(0, forepgrp);
+                setpgid(0, 0);
             }
             ret = activities_command(NULL, 0);
             // Exit with the actual result from the pipeline
@@ -282,8 +282,8 @@ int run_atomic(atomic *atom, int background)
             {
                 if (forepgrp == -1)
                     forepgrp = pid;
-                setpgid(pid, forepgrp);
-                tcsetpgrp(STDIN_FILENO, forepgrp);
+                setpgid(pid, pid);
+                tcsetpgrp(STDIN_FILENO, pid);
                 int status;
                 waitpid(pid, &status, WUNTRACED);
                 if (WIFSTOPPED(status))
@@ -344,7 +344,7 @@ int run_atomic(atomic *atom, int background)
             {
                 if (forepgrp == -1)
                     forepgrp = getpid();
-                setpgid(0, forepgrp);
+                setpgid(0, 0);
             }
             execvp(argv[0], argv);
             perror("execvp failed");
@@ -357,8 +357,8 @@ int run_atomic(atomic *atom, int background)
             {
                 if (forepgrp == -1)
                     forepgrp = pid;
-                setpgid(pid, forepgrp);
-                tcsetpgrp(STDIN_FILENO, forepgrp);
+                setpgid(pid, pid);
+                tcsetpgrp(STDIN_FILENO, pid);
 
                 add_process(pid, atom->command, 0);
                 // Wait for foreground process with WUNTRACED to catch Ctrl+Z
@@ -400,11 +400,169 @@ int run_atomic(atomic *atom, int background)
     return ret;
 }
 
+int run_atomic_bg(atomic *atom, int background)
+{
+    int saved_stdin = -1, saved_stdout = -1;
+    int ret = 0;
+    // Handle redirection
+    if (atom->redirection == 1)
+    { // input
+        int fd = open_file_for_read(atom->input_file);
+        if (fd == -1)
+        {
+            printf("No such file or directory\n");
+            return -1;
+        }
+        saved_stdin = redirect_stdin(fd);
+        close_file(fd);
+    }
+    else if (atom->redirection == 2)
+    { // output
+        int fd = open_file_for_write(atom->output_file);
+        if (fd == -1)
+        {
+            printf("Cannot open file for writing\n");
+            return -1;
+        }
+        saved_stdout = redirect_stdout(fd);
+        close_file(fd);
+    }
+    else if (atom->redirection == 3)
+    { // append
+        int fd = open_file_for_append(atom->output_file);
+        if (fd == -1)
+        {
+            printf("Cannot open file for appending\n");
+            return -1;
+        }
+        saved_stdout = redirect_stdout(fd);
+        close_file(fd);
+    }
+    else if (atom->redirection == 4)
+    { // write
+        int fdw = open_file_for_write(atom->output_file);
+        if (fdw == -1)
+        {
+            printf("Cannot open file for writing\n");
+            return -1;
+        }
+        int fdi = open_file_for_read(atom->input_file);
+        if (fdi == -1)
+        {
+            printf("No such file or directory\n");
+            return -1;
+        }
+        saved_stdin = redirect_stdin(fdi);
+        saved_stdout = redirect_stdout(fdw);
+        close_file(fdw);
+        close_file(fdi);
+    }
+    else if (atom->redirection == 5)
+    { // append
+        int fda = open_file_for_append(atom->output_file);
+        if (fda == -1)
+        {
+            printf("Cannot open file for appending\n");
+            return -1;
+        }
+        int fdi = open_file_for_read(atom->input_file);
+        if (fdi == -1)
+        {
+            printf("No such file or directory\n");
+            return -1;
+        }
+        saved_stdin = redirect_stdin(fdi);
+        saved_stdout = redirect_stdout(fda);
+        close_file(fda);
+        close_file(fdi);
+    }
+
+    // Builtin or external
+    if (strcmp(atom->command, "hop") == 0)
+    {
+        if (atom->args)
+            ret = hop_command(atom->args);
+        else
+            ret = hop_command(";");
+    }
+    else if (strcmp(atom->command, "reveal") == 0)
+    {
+
+        if (!atom->args)
+            atom->args = ".";
+        ret = reveal_command(atom->args);
+    }
+    else if (strcmp(atom->command, "log") == 0)
+    {
+        char *argv[32];
+        int argc = 0;
+        argv[argc++] = "log";
+        if (atom->args)
+        {
+            char *args_copy = strdup(atom->args);
+            char *tok = strtok(args_copy, " ");
+            while (tok && argc < 31)
+            {
+                argv[argc++] = tok;
+                tok = strtok(NULL, " ");
+            }
+            argv[argc] = NULL;
+        }
+        else
+        {
+            argv[argc] = NULL;
+        }
+        ret = log_command(argv + 1, argc - 1);
+    }
+    else if (strcmp(atom->command, "activities") == 0)
+    {
+        ret = activities_command(NULL, 0);
+    }
+    else if (strcmp(atom->command, "ping") == 0)
+    {
+        ret = ping(atom->args);
+    }
+    else if (strcmp(atom->command, "fg") == 0)
+    {
+        ret = fg(atom->args);
+    }
+    else if (strcmp(atom->command, "bg") == 0)
+    {
+        ret = bg(atom->args);
+    }
+    else if (strcmp(atom->command, "exit") == 0)
+    {
+        ret = 0;
+        exit(0);
+    }
+    else
+    {
+        // External command
+        char **argv = build_argv(atom);
+        // for (int i = 0; argv[i] != NULL; i++)
+        // {
+        //     printf("argv[%d]: %s\n", i, argv[i]);
+        // }
+        execvp(argv[0], argv);
+        perror("execvp failed");
+        ret = -1;
+        free(argv);
+    }
+
+    if (saved_stdin != -1)
+        restore_stdin(saved_stdin);
+    if (saved_stdout != -1)
+        restore_stdout(saved_stdout);
+    return ret;
+}
+
 int run_pipeline(atomic *atom_head, int background)
 {
     int n = count_atoms(atom_head);
-    if (n == 1)
+    if (n == 1 && background == 0)
         return run_atomic(atom_head, background);
+    if (n == 1 && background == 1)
+        return run_atomic_bg(atom_head, background);
 
     int pipes[n - 1][2];
     atomic *atom = atom_head;
@@ -545,6 +703,7 @@ int run_pipeline(atomic *atom_head, int background)
                     forepgrp = pid;
                 setpgid(pid, forepgrp);
             }
+            if(i==0)
             add_process(pid, atom->command, background);
         }
         atom = atom->next;
