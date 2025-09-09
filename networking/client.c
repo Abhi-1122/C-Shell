@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
     {
         // Chat mode
         fd_set read_fds;
-        char buffer[MAX_PACKET_SIZE];
+        char buffer[MAX_BUFFER_SIZE];
         char input_buffer[MAX_PACKET_SIZE];
 
         // printf("Chat started. Type /quit to exit.\n");
@@ -166,13 +166,13 @@ int main(int argc, char *argv[])
         sham_send_data(&conn, output_filename, strlen(output_filename), 0);
 
         // Send file data
-        char buffer[MAX_PACKET_SIZE];
+        char buffer[MAX_BUFFER_SIZE];
         size_t bytes_read;
         size_t total_sent = 0;
 
         while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
         {
-            printf("%s\n", buffer);
+            // printf("%s\n", buffer);
             int sent = sham_send_data(&conn, buffer, bytes_read, 0);
             if (sent < 0)
             {

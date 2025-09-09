@@ -52,6 +52,7 @@ void init_connection(struct sham_connection *conn, int sockfd, float loss_rate)
     for (int i = 0; i < MAX_WINDOW_SIZE; i++)
     {
         conn->send_buffer[i].in_use = 0;
+        conn->recv_buffer[i].in_use = 0;
     }
 }
 
@@ -414,7 +415,7 @@ int sham_send_data(struct sham_connection *conn, const char *data, size_t len, i
             if (!conn->send_buffer[i].in_use)
             {
                 // printf("Sending packet: seq=%u, ack=%u, len=%zu\n",
-                    //    conn->seq_num, conn->ack_num, chunk_size);
+                //    conn->seq_num, conn->ack_num, chunk_size);
                 create_packet(&conn->send_buffer[i].packet, conn->seq_num,
                               conn->ack_num, 0, conn->window_size,
                               data + bytes_sent, chunk_size);
@@ -449,7 +450,7 @@ int sham_send_data(struct sham_connection *conn, const char *data, size_t len, i
         struct sham_packet recv_packet;
         int result = receive_packet(conn, &recv_packet);
         // printf("in send_data ACK packet: result=%d seq=%u, ack=%u, len=%zu\n",
-            //    result, recv_packet.header.seq_num, recv_packet.header.ack_num, recv_packet.data_len);
+        //    result, recv_packet.header.seq_num, recv_packet.header.ack_num, recv_packet.data_len);
         if (result > 0 && (recv_packet.header.flags & ACK_FLAG))
         {
             append_log(user, "RCV ACK=%u", recv_packet.header.ack_num);
@@ -467,6 +468,8 @@ int sham_recv_data(struct sham_connection *conn, char *buffer, size_t max_len, i
 {
     while (1)
     {
+        int duplicate = 0;
+
         if (conn->state != STATE_ESTABLISHED)
         {
             return -1;
@@ -503,19 +506,62 @@ int sham_recv_data(struct sham_connection *conn, char *buffer, size_t max_len, i
 
         if (recv_packet.data_len > 0 && result != 0)
         {
-            // Send ACK
+            if (recv_packet.header.seq_num != conn->ack_num)
+            {
+                for (int i = 0; i < MAX_WINDOW_SIZE; i++)
+                {
+                    if (conn->recv_buffer[i].in_use &&
+                        conn->recv_buffer[i].packet.header.seq_num == recv_packet.header.seq_num)
+                        duplicate=1;
+                }
+                if(duplicate ==1)
+                continue;
+                append_log(user, "RCV DATA SEQ=%u LEN=%zu", recv_packet.header.seq_num, recv_packet.data_len);
+                for (int i = 0; i < MAX_WINDOW_SIZE; i++)
+                {
+                    if (conn->recv_buffer[i].in_use == 0)
+                    {
+                        memcpy(&conn->recv_buffer[i].packet, &recv_packet, sizeof(struct sham_packet));
+                        conn->recv_buffer[i].in_use = 1;
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            size_t copy_len;
+            if (recv_packet.header.seq_num == conn->ack_num)
+            {
+                conn->ack_num = recv_packet.header.seq_num + recv_packet.data_len;
+                copy_len = (recv_packet.data_len > max_len) ? max_len : recv_packet.data_len;
+                memcpy(buffer, recv_packet.data, copy_len);
+                append_log(user, "RCV DATA SEQ=%u LEN=%zu", recv_packet.header.seq_num, recv_packet.data_len);
+                // Check for next in-order packets in buffer
+                for (int j = 0; j < 2; j++)
+                {
+                    for (int i = 0; i < MAX_WINDOW_SIZE; i++)
+                    {
+                        if (conn->recv_buffer[i].in_use &&
+                            conn->recv_buffer[i].packet.header.seq_num == conn->ack_num)
+                        {
+                            size_t next_copy_len = (conn->recv_buffer[i].packet.data_len > max_len - copy_len) ? (max_len - copy_len) : conn->recv_buffer[i].packet.data_len;
+                            memcpy(buffer + copy_len, conn->recv_buffer[i].packet.data, next_copy_len);
+                            conn->ack_num += conn->recv_buffer[i].packet.data_len;
+                            copy_len += next_copy_len;
+                            conn->recv_buffer[i].in_use = 0;
+                        }
+                    }
+                }
+            }
+
             struct sham_packet ack_packet;
-            conn->ack_num = recv_packet.header.seq_num + recv_packet.data_len;
             // printf("in recv_data: result=%d seq=%u, sending ack=%u, len=%zu\n",
-                //    result, recv_packet.header.seq_num, conn->ack_num, recv_packet.data_len);
+            //    result, recv_packet.header.seq_num, conn->ack_num, recv_packet.data_len);
             create_packet(&ack_packet, conn->seq_num, conn->ack_num,
                           ACK_FLAG, conn->window_size, NULL, 0);
             send_packet(conn, &ack_packet, user);
-            append_log(user, "RCV DATA SEQ=%u LEN=%zu", recv_packet.header.seq_num, recv_packet.data_len);
             append_log(user, "SND ACK=%u", conn->ack_num);
             // Copy data to buffer
-            size_t copy_len = (recv_packet.data_len > max_len) ? max_len : recv_packet.data_len;
-            memcpy(buffer, recv_packet.data, copy_len);
             return copy_len;
         }
     }

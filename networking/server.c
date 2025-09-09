@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
         {
             // Chat mode
             fd_set read_fds;
-            char buffer[MAX_PACKET_SIZE];
+            char buffer[MAX_BUFFER_SIZE];
             char input_buffer[MAX_PACKET_SIZE];
 
             while (1)
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
         {
             // File transfer mode
             char filename[MAX_FILENAME_SIZE];
-            char buffer[MAX_PACKET_SIZE];
+            char buffer[MAX_BUFFER_SIZE];
             FILE *output_file = NULL;
             size_t total_bytes = 0;
 

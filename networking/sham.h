@@ -87,6 +87,7 @@ struct sham_connection {
     
     // Sliding window buffers
     struct buffer_entry send_buffer[MAX_WINDOW_SIZE];
+    struct buffer_entry recv_buffer[MAX_WINDOW_SIZE];
     
     // Window management
     int send_base;
