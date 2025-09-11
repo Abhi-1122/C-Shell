@@ -1016,7 +1016,7 @@ index 3044d00..1b55a4f 100644
 +}
 \ No newline at end of file
 diff --git a/kernel/trap.c b/kernel/trap.c
-index a41cd69..beb831f 100644
+index a41cd69..6008d76 100644
 --- a/kernel/trap.c
 +++ b/kernel/trap.c
 @@ -16,15 +16,13 @@ void kernelvec();
@@ -1046,7 +1046,7 @@ index a41cd69..beb831f 100644
      panic("usertrap: not from user mode");
  
    // send interrupts and exceptions to kerneltrap(),
-@@ -81,8 +79,28 @@ usertrap(void)
+@@ -81,8 +79,29 @@ usertrap(void)
      kexit(-1);
  
    // give up the CPU if this is a timer interrupt.
@@ -1069,6 +1069,7 @@ index a41cd69..beb831f 100644
 +      yield();
 +    }
 +  }
++#elif SCHEDULER == FCFS
 +#else
 +  if (which_dev == 2)
      yield();
@@ -1076,7 +1077,7 @@ index a41cd69..beb831f 100644
  
    prepare_return();
  
-@@ -96,8 +114,7 @@ usertrap(void)
+@@ -96,8 +115,7 @@ usertrap(void)
  //
  // set up trapframe and control registers for a return to user space
  //
@@ -1086,7 +1087,7 @@ index a41cd69..beb831f 100644
  {
    struct proc *p = myproc();
  
-@@ -115,11 +132,11 @@ prepare_return(void)
+@@ -115,11 +133,11 @@ prepare_return(void)
    p->trapframe->kernel_satp = r_satp();         // kernel page table
    p->trapframe->kernel_sp = p->kstack + PGSIZE; // process's kernel stack
    p->trapframe->kernel_trap = (uint64)usertrap;
@@ -1100,7 +1101,7 @@ index a41cd69..beb831f 100644
    // set S Previous Privilege mode to User.
    unsigned long x = r_sstatus();
    x &= ~SSTATUS_SPP; // clear SPP to 0 for user mode
-@@ -132,28 +149,49 @@ prepare_return(void)
+@@ -132,28 +150,50 @@ prepare_return(void)
  
  // interrupts and exceptions from kernel code go here via kernelvec,
  // on whatever the current kernel stack is.
@@ -1150,6 +1151,7 @@ index a41cd69..beb831f 100644
 +      yield();
 +    }
 +  }
++#elif SCHEDULER == FCFS
 +#else
 +  if (which_dev == 2 && myproc() != 0)
      yield();
@@ -1157,7 +1159,7 @@ index a41cd69..beb831f 100644
  
    // the yield() may have caused some traps to occur,
    // so restore trap registers for use by kernelvec.S's sepc instruction.
-@@ -161,10 +199,10 @@ kerneltrap()
+@@ -161,10 +201,10 @@ kerneltrap()
    w_sstatus(sstatus);
  }
  
@@ -1171,7 +1173,7 @@ index a41cd69..beb831f 100644
      acquire(&tickslock);
      ticks++;
      wakeup(&ticks);
-@@ -182,38 +220,48 @@ clockintr()
+@@ -182,38 +222,48 @@ clockintr()
  // returns 2 if timer interrupt,
  // 1 if other device,
  // 0 if not recognized.
