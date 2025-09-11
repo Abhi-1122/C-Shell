@@ -1,4 +1,5 @@
 #include "intrinsic.h"
+#include <ctype.h>
 
 int ping(char *tokens)
 {
@@ -15,6 +16,16 @@ int ping(char *tokens)
     {
         printf("Invalid number of arguments\n");
         return -1;
+    }
+
+    // Validate that argv[1] contains only digits
+    for (int i = 0; argv[1][i] != '\0'; i++)
+    {
+        if (!isdigit(argv[1][i]))
+        {
+            printf("Invalid Syntax!\n");
+            return -1;
+        }
     }
 
     pid_t pid = (pid_t)atoi(argv[0]);
@@ -210,6 +221,11 @@ int bg(char *tokens)
             perror("Failed to continue process");
             return -1;
         }
+    }
+    else
+    {
+        printf("Job already running\n");
+        return -1;
     }
 
 
