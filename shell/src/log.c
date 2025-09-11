@@ -120,7 +120,7 @@ int execute_log_entry(int index) {
     int actual_index = count - index;
     char *command = log_entries[actual_index];
     
-    printf("Executing: %s\n", command);
+    // printf("Executing: %s\n", command);
     
     // Parse and execute the command
     char **tokens = NULL;

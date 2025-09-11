@@ -2,6 +2,7 @@
 #define REVEAL_H
 
 #include "shell.h"
+#include "hop.h"
 #include <dirent.h>
 #include <sys/stat.h>
 #include <pwd.h>

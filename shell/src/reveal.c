@@ -4,20 +4,10 @@
 #include <string.h>
 #include <ctype.h>
 
-static char previous_directory[MAX_PATH_SIZE] = "";
-static int has_previous = 0;
-
 static int compare_strings(const void *a, const void *b) {
-    const unsigned char *sa = (const unsigned char *) *(const char **)a;
-    const unsigned char *sb = (const unsigned char *) *(const char **)b;
-    while (*sa && *sb) {
-        int ca = tolower((int)*sa);
-        int cb = tolower((int)*sb);
-        if (ca != cb) return ca - cb;
-        sa++; sb++;
-    }
-    if (*sa == 0 && *sb == 0) return strcmp(*(const char **)a, *(const char **)b);
-    return *sa ? 1 : -1;
+    const char *sa = *(const char **)a;
+    const char *sb = *(const char **)b;
+    return strcmp(sa, sb);
 }
 
 static void print_file_details(const char *filename, const char *dir_path) {
@@ -175,46 +165,63 @@ static char* resolve_path(const char *arg) {
 int reveal_command(char *tokens) {
     int show_all = 0;
     int long_format = 0;
-    char *path_arg = ".";
-    char current_dir[MAX_PATH_SIZE];
-    int len = strlen(tokens);
+    char *path_arg = NULL;
+    int show_previous = 0;
 
-    // Get current directory for previous directory tracking
-    if (getcwd(current_dir, sizeof(current_dir)) != NULL) {
-        strcpy(previous_directory, current_dir);
-        has_previous = 1;
-    }
+    // Tokenize input by spaces
+    char *tokens_copy = strdup(tokens);
+    char *tok = strtok(tokens_copy, " ");
     
-    // Parse tokens
-    for (int i = 0; i < len; i++) {
-        if (tokens[i] == '-') {
-            while(tokens[i]!= ' ' && tokens[i]!= '\0')
-            {
-                if (tokens[i] == 'a') {
-                    show_all = 1;
-                } else if (tokens[i] == 'l') {
-                    long_format = 1;
+    while (tok) {
+        if (tok[0] == '-' && strlen(tok) > 1) {
+            // Parse flags like -a -l
+            for (int j = 1; tok[j]; j++) {
+                if (tok[j] == 'a') show_all = 1;
+                else if (tok[j] == 'l') long_format = 1;
+                else {
+                    printf("reveal: Invalid Syntax!\n");
+                    free(tokens_copy);
+                    return -1;
                 }
-                i++;
             }
+        } else if (strcmp(tok, "-") == 0) {
+            // Special case: reveal -
+            show_previous = 1;
         } else {
-            path_arg = strdup(tokens + i);
-            break;
+            if (path_arg != NULL) {
+                // Already had one path -> multiple paths detected
+                printf("reveal: Invalid Syntax!\n");
+                free(tokens_copy);
+                return -1;
+            }
+            path_arg = tok;
         }
+        tok = strtok(NULL, " ");
     }
-    
+
+    if (show_previous) {
+        if (!has_previous) {
+            printf("reveal: No such directory!\n");
+            free(tokens_copy);
+            return -1;
+        }
+        path_arg = previous_directory;
+    }
+
+    if (!path_arg) path_arg = "."; // default path
+
     // Resolve the path
     char *resolved_path = resolve_path(path_arg);
-    if (resolved_path == NULL) {
+    if (!resolved_path) {
+        free(tokens_copy);
         return -1;
     }
-    
-    // Reveal the directory
-    if (reveal_directory(resolved_path, show_all, long_format) != 0) {
-        return -1;
-    }
-    
-    return 0;
+
+    // Reveal directory
+    int res = reveal_directory(resolved_path, show_all, long_format);
+    free(tokens_copy);
+    return res;
 }
+
 
 // ########## LLM GENERATED CODE ENDS ##########

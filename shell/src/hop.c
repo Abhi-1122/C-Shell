@@ -3,8 +3,8 @@
 #include "hop.h"
 #include "file.h"
 
-static char previous_directory[MAX_PATH_SIZE] = "";
-static int has_previous = 0;
+char previous_directory[MAX_PATH_SIZE] = "";
+int has_previous = 0;
 
 static int change_to_directory(const char *path)
 {
