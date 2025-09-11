@@ -150,6 +150,10 @@ int log_command(char **tokens, int token_count) {
     }
     
     if (token_count >= 1 && strcmp(tokens[0], "purge") == 0) {
+        if(tokens[1] != NULL) {
+            printf("log: Invalid Syntax!\n");
+            return -1;
+        }
         // Purge: clear the history
         char log_path[MAX_PATH_SIZE];
         int path_len = strlen(home_directory) + strlen(LOG_FILENAME) + 2;
@@ -171,6 +175,10 @@ int log_command(char **tokens, int token_count) {
     }
     
     if (token_count >= 2 && strcmp(tokens[0], "execute") == 0) {
+        if(tokens[2] != NULL) {
+            printf("log: Invalid Syntax!\n");
+            return -1;
+        }
         // Execute: run command at given index
         int index = atoi(tokens[1]);
         if (execute_log_entry(index) == 0) {
@@ -179,7 +187,7 @@ int log_command(char **tokens, int token_count) {
         return -1;
     }
     
-    printf("Error: Invalid log command syntax\n");
+    printf("log: Invalid Syntax!\n");
     return -1;
 }
 
